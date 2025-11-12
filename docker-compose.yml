@@ -1,0 +1,27 @@
+
+services:
+  postgres:
+    image: postgres
+    container_name: postgres_db
+    env_file:
+      - .env
+    ports:
+      - "5430:5432"
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data/
+    working_dir: /var/lib/postgresql/data
+    restart: unless-stopped
+  
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    restart: unless-stopped
+
+volumes:
+  my-postgres-data:

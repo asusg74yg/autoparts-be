@@ -1,0 +1,473 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  USER
+  SUPPLIER
+}
+
+enum TicketStatus {
+  OPEN
+  CLOSED
+  PENDING
+}
+
+enum ShippingStatus {
+  PENDING
+  SHIPPED
+  RETURNED
+  DELIVERED
+}
+
+enum CmsStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model User {
+  id             String          @id @default(uuid())
+  role           Role
+  businessName   String?
+  contactName    String
+  email          String          @unique
+  phone          String?
+  address        String?
+  country        String?
+  passwordHash   String
+  refreshToken   String?
+  otpCode        BigInt?
+  otpExpiresAt   DateTime?
+  emailVerified  Boolean         @default(false)
+  approved       Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  vehicles       Vehicle[]
+  orders         Order[]
+  supportTickets SupportTicket[]
+  activityLogs   ActivityLog[]
+  review         Review[]
+}
+
+model Vehicle {
+  id        String   @id @default(uuid())
+  userId    String
+  brand     String
+  model     String
+  year      Int
+  make      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Order {
+  id              String         @id @default(uuid())
+  orderNumber     Int            @default(autoincrement()) @unique
+  userId          String?
+  shippingStatus  ShippingStatus @default(PENDING)
+  shippingCost    Float? @default(0)
+  stripeSessionId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user           User?             @relation(fields: [userId], references: [id])
+  items          OrderItem[]
+  additionalInfo AdditionalOrder[]
+  shippingLabel  ShippingLabel?
+  supportTickets SupportTicket[]
+}
+
+model AdditionalOrder {
+  id                String @id @default(uuid())
+  orderId           String
+  order             Order  @relation(fields: [orderId], references: [id])
+  shipping_fullName String
+  shipping_email    String
+  shipping_address  String
+  shipping_city     String
+  shipping_state    String
+  shipping_zipCode  String @db.VarChar(5)
+  shipping_country  String
+  shipping_phone    String @db.VarChar(15)
+
+  // Billing information (optional)
+  billing_fullName String?
+  billing_email    String?
+  billing_address  String?
+  billing_city     String?
+  billing_state    String?
+  billing_zipCode  String?  @db.VarChar(5)
+  billing_country  String?
+  billing_phone    String?  @db.VarChar(15)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Promotion {
+  id        String   @id @default(uuid())
+  title     String
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+  priceType String?
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+// model Product {
+//   id          String   @id @default(uuid())
+//   name        String
+//   vendor      String?
+//   sku         String?
+//   imageURL    String?
+//   description String?
+//   price       Float    @default(0)
+//   quantity    BigInt   @default(0)
+//   discount    Float?
+//   rating      Float?   @default(0)
+//   isFeatured  Boolean  @default(false)
+//   inStock     Boolean  @default(true)
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+
+//   brand        String?
+//   year         String?
+//   vehicleModel String?
+//   engine       String?
+//   category     String?
+//   subCategory  String?
+
+//   supplier   Supplier?   @relation(fields: [supplierId], references: [id])
+//   orderItems OrderItem[]
+//   supplierId String?
+//   review     Review[]
+// }
+
+model Review {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Supplier {
+  id           String   @id @default(uuid())
+  name         String
+  contact      String?
+  emailAddress String?
+  brandLabel   String?
+  // apiKey    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  // products Product[]
+}
+
+model SupportTicket {
+  id        String       @id @default(uuid())
+  userId    String
+  orderId   String?
+  subject   String
+  message   String
+  status    TicketStatus @default(OPEN)
+  createdAt DateTime     @default(now())
+
+  user  User   @relation(fields: [userId], references: [id])
+  order Order? @relation(fields: [orderId], references: [id])
+  files File[]
+}
+
+model File {
+  id              String         @id @default(uuid())
+  urls            String[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  SupportTicket   SupportTicket? @relation(fields: [supportTicketId], references: [id])
+  supportTicketId String?
+}
+
+model ShippingLabel {
+  id             String   @id @default(uuid())
+  orderId        String   @unique
+  labelUrl       String?
+  trackingNumber String?  @unique @default(cuid())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+}
+
+model EmailTemplate {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  subject   String
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model CmsPage {
+  id        String    @id @default(uuid())
+  slug      String    @unique
+  title     String
+  content   String
+  status    CmsStatus @default(DRAFT)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actorRole  Role?
+  action     String
+  entityType String
+  entityId   String?
+  message    String
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+}
+
+// -------------------ACES PIES---------------------
+// BaseVehicle related models
+model BaseVehicle {
+  id               String     @id @default(uuid())
+  baseVehicleID    Int
+  year             Int?
+  model            String?
+  vehicleType      String?
+  vehicleTypeGroup String?
+  make             String?
+  subModels        SubModel[]
+  Product          Product[]
+}
+
+model SubModel {
+  id            String      @id @default(uuid())
+  subModel      String?
+  regionAbbr    String?
+  regionName    String?
+  baseVehicleId String
+  // Foreign key to BaseVehicle
+  baseVehicle   BaseVehicle @relation(fields: [baseVehicleId], references: [id])
+  region        Region[]
+}
+
+model Region {
+  id         Int      @id @default(autoincrement())
+  RegionID   Int?
+  ParentID   Int?
+  RegionAbbr String?
+  RegionName String?
+  // Relationship to SubModel
+  submodelId String
+  subModel   SubModel @relation(fields: [submodelId], references: [id])
+}
+
+// -------------------------
+// EngineBase related models
+model EngineBase {
+  id              String    @id @default(uuid())
+  engineBaseID    Int
+  liter           String?
+  cc              String?
+  cid             String?
+  cylinders       String?
+  blockType       String?
+  engBoreIn       String?
+  engBoreMetric   String?
+  engStrokeIn     String?
+  engStrokeMetric String?
+  Product         Product[]
+}
+
+model EngineDesignation {
+  id                  String    @id @default(uuid())
+  EngineDesignationID Int
+  engineDesignation   String?
+  Product             Product[]
+}
+
+model EngineVersion {
+  id              String    @id @default(uuid())
+  EngineVersionID Int
+  engineVersion   String?
+  Product         Product[]
+}
+
+model EngineMfr {
+  id          String    @id @default(uuid())
+  EngineMfrID Int
+  engineMfr   String?
+  Product     Product[]
+}
+
+model FuelType {
+  id         String    @id @default(uuid())
+  FuelTypeID Int
+  fuelType   String?
+  Product    Product[]
+}
+
+// ------------
+
+// ------------
+model BrandAAIAID {
+  id            String    @id @default(uuid())
+  brandAAIAIDID String
+  brandAAIAID   String?
+  Product       Product[]
+}
+
+// ------------
+model Product {
+  id                         String                       @id @default(uuid())
+  mfrLabel                   String?
+  part                       String?
+  action                     String?
+  hazardMaterialCode         String?
+  partNumber                 String?
+  brandLabel                 String?
+  acesApplications           String?
+  itemQuantitySize           Int?
+  containerType              String?
+  quantityPerApplication     Int?
+  minimumOrderQuantity       Int?
+  partTerminologyId          Int
+  productDescription         ProductDescription[]
+  pricing                    Pricing[]
+  productAttributes          ProductAttribute[]
+  extendedProductInformation ExtendedProductInformation[]
+  package                    Package?
+  digitalAssets              DigitalAsset[]
+  maintenanceType            String?
+  partType                   PartType?
+  partTypeId                 String?
+  orderItems                 OrderItem[]
+  reviews                    Review[]
+  baseVehicleId              String
+  engineBaseId               String
+  engineDesignationId        String
+  engineVersionId            String
+  engineMfrId                String
+  fuelTypeId                 String
+  brandAAIAIDId              String
+  baseVehicle                BaseVehicle                  @relation(fields: [baseVehicleId], references: [id])
+  engineBase                 EngineBase                   @relation(fields: [engineBaseId], references: [id])
+  engineDesignation          EngineDesignation            @relation(fields: [engineDesignationId], references: [id])
+  engineVersion              EngineVersion                @relation(fields: [engineVersionId], references: [id])
+  engineMfr                  EngineMfr                    @relation(fields: [engineMfrId], references: [id])
+  fuelType                   FuelType                     @relation(fields: [fuelTypeId], references: [id])
+  brandAAIAID                BrandAAIAID                  @relation(fields: [brandAAIAIDId], references: [id])
+  rating                     Float?                       @default(0)
+}
+
+model PartType {
+  id                  String   @id @default(uuid())
+  partTypeID          Int
+  partTypeName        String?
+  partTypeDescription String?
+  category            String?
+  subcategory         String?
+  productId           String?  @unique
+  product             Product? @relation(fields: [productId], references: [id])
+}
+
+model ProductDescription {
+  id              String  @id @default(uuid())
+  descriptionText String?
+  descriptionCode String?
+  maintenanceType String?
+  languageCode    String?
+  productId       String
+  sequence        Int?
+  product         Product @relation(fields: [productId], references: [id])
+}
+
+model Pricing {
+  id               String  @id @default(uuid())
+  priceSheetNumber String?
+  currencyCode     String?
+  price            Float?
+  priceType        String?
+  maintenanceType  String?
+  productId        String
+  product          Product @relation(fields: [productId], references: [id])
+}
+
+model ProductAttribute {
+  id                 String  @id @default(uuid())
+  attributeID        String?
+  padbAttribute      String?
+  recordNumber       Int?
+  multiValueQuantity Int?
+  multiValueSequence Int?
+  languageCode       String?
+  productId          String
+  product            Product @relation(fields: [productId], references: [id])
+}
+
+model ExtendedProductInformation {
+  id              String  @id @default(uuid())
+  expiCode        String?
+  descriptionText String?
+  maintenanceType String?
+  languageCode    String?
+  productId       String
+  product         Product @relation(fields: [productId], references: [id])
+}
+
+model Package {
+  id               String  @id @default(uuid())
+  packageID        Int?
+  packageUOM       String?
+  quantityOfEaches Int?
+  dimensionsHeight Float?
+  dimensionsWidth  Float?
+  dimensionsLength Float?
+  packageWeight    Float?
+  weightUOM        String?
+  maintenanceType  String?
+  productId        String  @unique
+  product          Product @relation(fields: [productId], references: [id])
+}
+
+model DigitalAsset {
+  id              String  @id @default(uuid())
+  fileName        String?
+  assetType       String?
+  fileType        String?
+  uri             String
+  country         String?
+  maintenanceType String?
+  productId       String
+  product         Product @relation(fields: [productId], references: [id])
+}

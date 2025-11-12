@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Order Details</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f8f9fa; padding: 20px;">
+
+  <div style="max-width: 700px; margin: 0 auto; background: #ffffff; border: 1px solid #ddd; border-radius: 6px; padding: 20px;">
+    <h2 style="text-align: center; color: #333;">Order Details</h2>
+    <hr style="border: none; border-top: 1px solid #ccc;">
+
+    <!-- Customer Information -->
+    <h3 style="color: #555;">Customer Information</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Name:</strong></td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{customerName}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Email:</strong></td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{email}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Phone:</strong></td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{phone}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Order Number:</strong></td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{orderNumber}}</td>
+      </tr>
+    </table>
+
+    <!-- Product List -->
+    <h3 style="color: #555;">Products Ordered</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+      <thead>
+        <tr style="background-color: #f1f1f1;">
+          <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ccc;">#</th>
+          <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ccc;">Product ID</th>
+          <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ccc;">Label</th>
+          <th style="text-align: right; padding: 8px; border-bottom: 2px solid #ccc;">Quantity</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Example products -->
+       
+      </tbody>
+    </table>
+
+    <!-- Address Information -->
+    <h3 style="color: #555;">Address Information</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+      <tr>
+        <td style="padding: 8px; vertical-align: top; width: 50%;">
+          <strong>Shipping Address:</strong><br>
+          <div style="margin-top: 5px;">{{shippingAddress}}</div>
+        </td>
+        <td style="padding: 8px; vertical-align: top; width: 50%;">
+          <strong>Billing Address:</strong><br>
+          <div style="margin-top: 5px;">{{billingAddress}}</div>
+        </td>
+      </tr>
+    </table>
+
+    <hr style="border: none; border-top: 1px solid #ccc; margin-top: 30px;">
+    <p style="text-align: center; color: #888; font-size: 12px;">Thank you for your order!</p>
+  </div>
+
+</body>
+</html>
