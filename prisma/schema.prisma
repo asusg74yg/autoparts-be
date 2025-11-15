@@ -217,7 +217,7 @@ model ShippingLabel {
   id             String   @id @default(uuid())
   orderId        String   @unique
   labelUrl       String?
-  trackingNumber String?  @unique @default(cuid())
+  trackingNumber String?   @default(cuid())
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -49,7 +49,7 @@ export class OrderService {
             process.cwd() + '/src/order/email-templates/order-template.html',
             'utf8',
           );
-          console.log(payload);
+
           const data = {
             customerName: (updatedOrder.additionalInfo[0] as any)
               .shipping_fullName,
@@ -115,7 +115,7 @@ export class OrderService {
           } catch (error) {
             console.log(error?.response?.body?.errors);
           }
-          console.log(htmlTemplate);
+
           return { htmlTemplate };
         }),
       );
@@ -133,7 +133,7 @@ export class OrderService {
 
   async create(body: OrderSchemaType) {
     return await this.db.$transaction(async (trx) => {
-      const order = await trx.order.create({
+      const order = await trx?.order.create({
         data: {
           items: {
             createMany: {
@@ -154,6 +154,7 @@ export class OrderService {
         },
         include: { items: true },
       });
+      console.log(order);
       const items = await Promise.all(
         order.items.map(async (item) => {
           const product = await trx.product.findUnique({
