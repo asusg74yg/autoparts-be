@@ -6,7 +6,6 @@ networks:
 
 services:
   autpart-be:
-    build: .
     container_name: autopart-be
     image: faizanraodev/autopart-be:latest
     ports:

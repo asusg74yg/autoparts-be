@@ -1,0 +1,47 @@
+node_modules/
+dist/
+Dockerfile
+docker-compose*.yml
+
+
+
+.git
+.gitignore
+npm-debug.log
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+.env.development
+.env.test
+.env.production
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# Large data files
+mergedData.json
+*.log
+*.tmp
+
+# Development and testing
+test/
+coverage/
+.nyc_output/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

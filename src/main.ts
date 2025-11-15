@@ -69,6 +69,7 @@ async function bootstrap() {
   await acesPiesQueue.listen();
 
   // App Listen @ PORT 3000 | PORT
+  console.log('hhello', process.env.PORT);
   await app.listen(process.env.PORT ?? 3000);
 }
 
