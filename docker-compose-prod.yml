@@ -12,24 +12,24 @@ services:
       - "4001:4001"
     environment:
       - PORT=4001
-      - DATABASE_URL=postgres://postgres:ThisIsSecretPassword@postgres:5432/autoparts
-      - POSTGRES_PASSWORD=ThisIsSecretPassword
+      - DATABASE_URL=postgres://postgres::5432/autoparts
+      - POSTGRES_PASSWORD=
       - DEFAULT_ROLE=USER
       - JWT_SECRET=autoPartsSecret123#$
       - JWT_REFRESH_SECRET=autoPartsSecret456#$
       - RABBIT_MQ=rabbitmq:5672
-      - STRIPE_SECRET_KEY=sk_test_51S0bU076qmv7PlKpselwtDB5FzsmFKjuswdysiAv1thobKsf0Eg9DV4qxNGgHcWT60wdtYgahONIxHWcEdvBBGd900JCUUqmlZ
+      - STRIPE_SECRET_KEY=
       - POSTGRES_HOST=postgres
       - STRIPE_SUCCESS_URL=http://localhost:4000/success?session_id={CHECKOUT_SESSION_ID}
       - STRIPE_RETURN_URL=http://localhost:3000/
 
-      - SENDGRID_API_KEY=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
+      - SENDGRID_API_KEY=
       - EMAIL_SERVICE_FROM=rmfbusiness1920@gmail.com
 
       - BASE_PATH_FOR_VCDB=autocare.org/AutoCare_VCdb_NA_LDPS_enUS_JSON_20250828
       - BASE_PATH_FOR_PCDB=autocare.org/AutoCare_PCdb_enUS_JSON_20250828
       - BASE_PATH_FOR_BRAND=autocare.org/
-      - CC_EMAIL=admin@gmail.com
+      - CC_EMAIL=
 
     restart: unless-stopped
     depends_on:
@@ -47,7 +47,7 @@ services:
       - "5430:5432"
     environment:
       # - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_PASSWORD=ThisIsSecretPassword
+      - POSTGRES_PASSWORD=
     volumes:
       - ./postgres-data:/var/lib/postgresql/data/
     working_dir: /var/lib/postgresql/data
