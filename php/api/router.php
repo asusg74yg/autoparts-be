@@ -232,23 +232,35 @@ if ($uri === '/api/products' && $method === 'GET') {
 }
 
 if (match_route('/api/products/:id', $uri, $params) && $method === 'GET') {
-    $stmt = $db->prepare("SELECT * FROM products WHERE id = ?");
+    $stmt = $db->prepare("SELECT p.*, bv.make as base_make, bv.model as base_model, bv.year as base_year, eb.liter as engine_liter, eb.cylinders as engine_cylinders, eb.block_type as engine_block, ft.fuel_type FROM products p LEFT JOIN base_vehicles bv ON p.base_vehicle_id = bv.id LEFT JOIN engine_bases eb ON p.engine_base_id = eb.id LEFT JOIN fuel_types ft ON p.fuel_type_id = ft.id WHERE p.id = ?");
     $stmt->execute([$params['id']]);
     $p = $stmt->fetch();
     if (!$p) send_error_response('Product not found', 404);
 
-    // Load related descriptions, pricings, attributes, packages, digital assets
-    $p['descriptions'] = $db->prepare("SELECT * FROM product_descriptions WHERE product_id = ?");
-    $p['descriptions']->execute([$params['id']]);
-    $p['descriptions'] = $p['descriptions']->fetchAll();
+    // Load related descriptions, pricings, attributes, packages, digital assets, part types
+    $stmtDesc = $db->prepare("SELECT * FROM product_descriptions WHERE product_id = ?");
+    $stmtDesc->execute([$params['id']]);
+    $p['descriptions'] = $stmtDesc->fetchAll();
 
-    $p['pricings'] = $db->prepare("SELECT * FROM pricings WHERE product_id = ?");
-    $p['pricings']->execute([$params['id']]);
-    $p['pricings'] = $p['pricings']->fetchAll();
+    $stmtPrices = $db->prepare("SELECT * FROM pricings WHERE product_id = ?");
+    $stmtPrices->execute([$params['id']]);
+    $p['pricings'] = $stmtPrices->fetchAll();
 
-    $p['digitalAssets'] = $db->prepare("SELECT * FROM digital_assets WHERE product_id = ?");
-    $p['digitalAssets']->execute([$params['id']]);
-    $p['digitalAssets'] = $p['digitalAssets']->fetchAll();
+    $stmtAssets = $db->prepare("SELECT * FROM digital_assets WHERE product_id = ?");
+    $stmtAssets->execute([$params['id']]);
+    $p['digitalAssets'] = $stmtAssets->fetchAll();
+
+    $stmtAttr = $db->prepare("SELECT * FROM product_attributes WHERE product_id = ?");
+    $stmtAttr->execute([$params['id']]);
+    $p['attributes'] = $stmtAttr->fetchAll();
+
+    $stmtExpi = $db->prepare("SELECT * FROM extended_product_informations WHERE product_id = ?");
+    $stmtExpi->execute([$params['id']]);
+    $p['extendedInfo'] = $stmtExpi->fetchAll();
+
+    $stmtPkg = $db->prepare("SELECT * FROM packages WHERE product_id = ?");
+    $stmtPkg->execute([$params['id']]);
+    $p['package'] = $stmtPkg->fetch() ?: null;
 
     send_json_response($p);
 }

@@ -193,6 +193,24 @@
 
     </div>
 
+    <!-- MODAL: VIEW PRODUCT DETAILS -->
+    <div class="modal fade" id="productDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title" id="productDetailTitle">Product Specifications & Fitment</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="productDetailContent">
+                    <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: LOGIN / REGISTER -->
     <div class="modal fade" id="authModal" tabindex="-1">
         <div class="modal-dialog">
@@ -425,11 +443,72 @@
                             <p class="card-text text-muted mb-1">Part #: <strong>${p.part_number || 'N/A'}</strong></p>
                             ${p.make ? `<p class="card-text text-success mb-1">Fits: <strong>${p.year || ''} ${p.make} ${p.model || ''}</strong></p>` : ''}
                             <p class="card-text">Rating: ⭐ ${p.rating || '5.0'}</p>
-                            <button class="btn btn-outline-primary btn-sm w-100 mt-2" onclick="placeOrder('${p.id}')">Order Part</button>
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="btn btn-outline-info btn-sm flex-grow-1" onclick="viewProductDetails('${p.id}')">View Details</button>
+                                <button class="btn btn-primary btn-sm flex-grow-1" onclick="placeOrder('${p.id}')">Order Part</button>
+                            </div>
                         </div>
                     </div>
                 </div>
             `).join('');
+        }
+
+        async function viewProductDetails(productId) {
+            const modalModal = new bootstrap.Modal(document.getElementById('productDetailModal'));
+            const contentDiv = document.getElementById('productDetailContent');
+            contentDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+            modalModal.show();
+
+            const { ok, data } = await fetchJson(API_BASE + 'products/' + productId);
+
+            if (!ok || !data) {
+                contentDiv.innerHTML = '<div class="alert alert-danger">Failed to load product details.</div>';
+                return;
+            }
+
+            document.getElementById('productDetailTitle').innerText = `${data.brand_label || ''} ${data.part_number || ''} Details`;
+
+            const descriptions = (data.descriptions || []).map(d => `<p class="mb-1">${d.description_text || ''}</p>`).join('') || '<p class="text-muted">No additional description available.</p>';
+            const prices = (data.pricings || []).map(p => `<span class="badge bg-success fs-6 me-2">$${p.price || '0.00'} ${p.currency_code || 'USD'} (${p.price_type || 'LIST'})</span>`).join('') || '<span class="badge bg-success fs-6">$29.99 USD</span>';
+            const assets = (data.digitalAssets || []).map(a => `<a href="${a.uri}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mb-1">📁 ${a.file_name || a.asset_type || 'Digital Asset'}</a>`).join('') || '<p class="text-muted small">No digital assets attached.</p>';
+
+            contentDiv.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <h5>Specification Summary</h5>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item"><strong>Part Number:</strong> ${data.part_number || 'N/A'}</li>
+                            <li class="list-group-item"><strong>Brand:</strong> ${data.brand_label || 'AutoCare'}</li>
+                            <li class="list-group-item"><strong>Part Terminology ID:</strong> ${data.part_terminology_id || 'N/A'}</li>
+                            <li class="list-group-item"><strong>Container Type:</strong> ${data.container_type || 'Box'}</li>
+                            <li class="list-group-item"><strong>Min Order Qty:</strong> ${data.minimum_order_quantity || 1}</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <h5>Vehicle Fitment</h5>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item"><strong>Vehicle Fit:</strong> ${data.base_year || ''} ${data.base_make || 'Universal'} ${data.base_model || ''}</li>
+                            <li class="list-group-item"><strong>Engine Specs:</strong> ${data.engine_liter || ''} ${data.engine_cylinders ? data.engine_cylinders + ' Cyl' : ''}</li>
+                            <li class="list-group-item"><strong>Fuel Type:</strong> ${data.fuel_type || 'Gasoline'}</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <h5>Pricing Information</h5>
+                    <div>${prices}</div>
+                </div>
+
+                <div class="mb-3">
+                    <h5>Descriptions</h5>
+                    <div class="p-3 bg-light rounded border">${descriptions}</div>
+                </div>
+
+                <div class="mb-3">
+                    <h5>Digital Assets & Manuals</h5>
+                    <div>${assets}</div>
+                </div>
+            `;
         }
 
         function handleFitmentSearch(e) {
