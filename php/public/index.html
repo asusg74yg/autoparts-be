@@ -175,11 +175,11 @@
                 <!-- ACES/PIES Ingestion Dashboard Tab -->
                 <div class="tab-pane fade" id="admin-ingestion">
                     <h4>📥 ACES & PIES Data Ingestion Dashboard</h4>
-                    <p class="text-muted">Upload a merged ACES/PIES JSON dataset file to automatically import base vehicles, engine bases, fuel types, part types, and product fitment specifications.</p>
+                    <p class="text-muted">Upload an ACES XML (v1.0-5.0), PIES XML (v6.0-8.0), CSV, or JSON dataset file to automatically import base vehicles, engine bases, fuel types, part types, and product fitment specifications.</p>
                     <form id="ingestionForm" onsubmit="handleIngestionUpload(event)" class="mb-4">
                         <div class="mb-3">
-                            <label class="form-label">Select ACES/PIES Merged JSON File</label>
-                            <input type="file" id="ingestJsonFile" class="form-control" accept=".json" required>
+                            <label class="form-label">Select ACES/PIES Dataset File (.xml, .csv, .json)</label>
+                            <input type="file" id="ingestJsonFile" class="form-control" accept=".xml,.csv,.json" required>
                         </div>
                         <button type="submit" class="btn btn-success">Start Data Ingestion ETL</button>
                     </form>
