@@ -23,7 +23,7 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link active" href="#" onclick="showSection('catalog')">Products</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="#" onclick="showSection('catalog')">Products & Fitment</a></li>
                     <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('vehicles')">My Vehicles</a></li>
                     <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('orders')">Orders</a></li>
                     <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('support')">Support Tickets</a></li>
@@ -40,23 +40,38 @@
     <!-- Main Container -->
     <div class="container my-4">
 
-        <!-- SECTION: CATALOG -->
+        <!-- SECTION: CATALOG & FITMENT SEARCH -->
         <div id="section-catalog" class="section-content">
             <div class="p-4 mb-4 bg-primary text-white rounded-3 hero shadow-sm text-center">
                 <h1 class="display-5 fw-bold">AutoCare ACES & PIES Parts Catalog</h1>
-                <p class="lead">Search automotive parts, compatibility, specifications and manage orders.</p>
+                <p class="lead">Search automotive parts, vehicle compatibility, specifications and manage orders.</p>
             </div>
 
-            <div class="row mb-4">
-                <div class="col-md-8 mx-auto">
-                    <div class="input-group input-group-lg shadow-sm">
-                        <input type="text" id="searchInput" class="form-control" placeholder="Search by Part Number, Brand, or Keyword...">
-                        <button class="btn btn-primary" type="button" onclick="loadProducts()">Search</button>
-                    </div>
+            <!-- Vehicle Fitment Filter Bar -->
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-secondary text-white fw-bold">🔍 Vehicle Fitment Filter</div>
+                <div class="card-body">
+                    <form id="fitmentForm" class="row g-3" onsubmit="handleFitmentSearch(event)">
+                        <div class="col-md-3">
+                            <label class="form-label">Make</label>
+                            <input type="text" id="fitmentMake" class="form-control" placeholder="e.g. Honda">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Model</label>
+                            <input type="text" id="fitmentModel" class="form-control" placeholder="e.g. Civic">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Year</label>
+                            <input type="number" id="fitmentYear" class="form-control" placeholder="e.g. 2022">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">Filter Parts</button>
+                        </div>
+                    </form>
                 </div>
             </div>
 
-            <h3 class="mb-3">Featured Parts</h3>
+            <h3 class="mb-3">Available Parts</h3>
             <div class="row g-4" id="productList">
                 <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
             </div>
@@ -125,12 +140,13 @@
             </div>
         </div>
 
-        <!-- SECTION: ADMIN PANEL -->
+        <!-- SECTION: ADMIN PANEL & INGESTION DASHBOARD -->
         <div id="section-admin" class="section-content d-none">
-            <h2 class="text-warning bg-dark p-2 rounded">Admin Management Console</h2>
+            <h2 class="text-warning bg-dark p-2 rounded">Admin Management & Data Ingestion Console</h2>
             <ul class="nav nav-tabs mt-3" id="adminTabs">
                 <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#admin-users">Users</a></li>
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#admin-add-product">Add Product</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#admin-ingestion">ACES/PIES Ingestion</a></li>
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#admin-suppliers">Suppliers</a></li>
             </ul>
             <div class="tab-content p-3 border border-top-0 bg-white">
@@ -155,6 +171,19 @@
                             <button type="submit" class="btn btn-primary">Create Product</button>
                         </div>
                     </form>
+                </div>
+                <!-- ACES/PIES Ingestion Dashboard Tab -->
+                <div class="tab-pane fade" id="admin-ingestion">
+                    <h4>📥 ACES & PIES Data Ingestion Dashboard</h4>
+                    <p class="text-muted">Upload a merged ACES/PIES JSON dataset file to automatically import base vehicles, engine bases, fuel types, part types, and product fitment specifications.</p>
+                    <form id="ingestionForm" onsubmit="handleIngestionUpload(event)" class="mb-4">
+                        <div class="mb-3">
+                            <label class="form-label">Select ACES/PIES Merged JSON File</label>
+                            <input type="file" id="ingestJsonFile" class="form-control" accept=".json" required>
+                        </div>
+                        <button type="submit" class="btn btn-success">Start Data Ingestion ETL</button>
+                    </form>
+                    <div id="ingestionStatus" class="mt-3"></div>
                 </div>
                 <div class="tab-pane fade" id="admin-suppliers">
                     <div id="adminSupplierList">Loading suppliers...</div>
@@ -360,16 +389,16 @@
             showSection('catalog');
         }
 
-        async function loadProducts() {
+        async function loadProducts(queryParams = '') {
             const list = document.getElementById('productList');
             list.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
 
             try {
-                const res = await fetch('/api/products');
+                const res = await fetch('/api/products' + queryParams);
                 const products = await res.json();
 
                 if (products.length === 0) {
-                    list.innerHTML = '<div class="col-12 text-center py-4">No products found.</div>';
+                    list.innerHTML = '<div class="col-12 text-center py-4">No matching products found.</div>';
                     return;
                 }
 
@@ -380,6 +409,7 @@
                                 <span class="badge bg-secondary mb-2">${p.brand_label || 'AutoCare'}</span>
                                 <h5 class="card-title">${p.part || 'Auto Part'}</h5>
                                 <p class="card-text text-muted mb-1">Part #: <strong>${p.part_number || 'N/A'}</strong></p>
+                                ${p.make ? `<p class="card-text text-success mb-1">Fits: <strong>${p.year || ''} ${p.make} ${p.model || ''}</strong></p>` : ''}
                                 <p class="card-text">Rating: ⭐ ${p.rating || '5.0'}</p>
                                 <button class="btn btn-outline-primary btn-sm w-100 mt-2" onclick="placeOrder('${p.id}')">Order Part</button>
                             </div>
@@ -389,6 +419,20 @@
             } catch (err) {
                 list.innerHTML = '<div class="col-12 text-center text-danger">Failed to load products.</div>';
             }
+        }
+
+        function handleFitmentSearch(e) {
+            e.preventDefault();
+            const make = document.getElementById('fitmentMake').value;
+            const model = document.getElementById('fitmentModel').value;
+            const year = document.getElementById('fitmentYear').value;
+
+            const params = new URLSearchParams();
+            if (make) params.append('make', make);
+            if (model) params.append('model', model);
+            if (year) params.append('year', year);
+
+            loadProducts('?' + params.toString());
         }
 
         async function placeOrder(productId) {
@@ -576,6 +620,32 @@
                 showSection('catalog');
             } else {
                 alert('Failed to create product');
+            }
+        }
+
+        async function handleIngestionUpload(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('ingestJsonFile');
+            const statusDiv = document.getElementById('ingestionStatus');
+            if (!fileInput.files[0]) return;
+
+            statusDiv.innerHTML = '<div class="alert alert-info">Uploading and processing dataset... Please wait.</div>';
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const res = await fetch('/api/acespies/ingest', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token },
+                body: formData
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                statusDiv.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                loadProducts();
+            } else {
+                statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error || 'Ingestion failed'}</div>`;
             }
         }
     </script>
