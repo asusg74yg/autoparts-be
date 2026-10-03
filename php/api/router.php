@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/jwt.php';
 require_once __DIR__ . '/../helpers/auth.php';
 require_once __DIR__ . '/../helpers/upload.php';
 require_once __DIR__ . '/../helpers/ingestion.php';
+require_once __DIR__ . '/../helpers/xml_csv_parser.php';
 
 // Enable CORS
 header("Access-Control-Allow-Origin: *");
@@ -289,24 +290,37 @@ if ($uri === '/api/products' && $method === 'POST') {
 }
 
 // ==========================================
-// 5. INGESTION & ETL ROUTE (ACES / PIES)
+// 5. INGESTION & ETL ROUTE (JSON, XML ACES v1-5/PIES v6-8, CSV)
 // ==========================================
 if ($uri === '/api/acespies/ingest' && $method === 'POST') {
     require_roles(['ADMIN', 'SUPPLIER']);
 
     if (!empty($_FILES['file']['tmp_name'])) {
-        $raw = file_get_contents($_FILES['file']['tmp_name']);
-        $items = json_decode($raw, true);
-        if (is_array($items)) {
+        $file_path = $_FILES['file']['tmp_name'];
+        $original_name = $_FILES['file']['name'] ?? '';
+        $ext = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+
+        $items = [];
+        if ($ext === 'xml') {
+            $items = parse_aces_pies_xml($file_path);
+        } elseif ($ext === 'csv') {
+            $items = parse_aces_pies_csv($file_path);
+        } else {
+            // Assume JSON
+            $raw = file_get_contents($file_path);
+            $items = json_decode($raw, true) ?: [];
+        }
+
+        if (is_array($items) && !empty($items)) {
             $count = 0;
             foreach ($items as $item) {
                 if (ingest_aces_pies_item($item)) {
                     $count++;
                 }
             }
-            send_json_response(['message' => "Successfully ingested {$count} ACES/PIES items"]);
+            send_json_response(['message' => "Successfully ingested {$count} ACES/PIES items from " . strtoupper($ext)]);
         } else {
-            send_error_response('Invalid JSON file format');
+            send_error_response('Invalid or empty file format');
         }
     } elseif (!empty($input['items']) && is_array($input['items'])) {
         $count = 0;
