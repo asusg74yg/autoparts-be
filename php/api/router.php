@@ -18,7 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$raw_uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$uri = $_SERVER['NORMALIZED_API_URI'] ?? $raw_uri;
+if (($pos = strpos($uri, '/api/')) !== false && $pos > 0) {
+    $uri = substr($uri, $pos);
+}
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Helper to match route path patterns e.g. /api/users/:id

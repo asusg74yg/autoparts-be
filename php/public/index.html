@@ -17,7 +17,7 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="/">🏎️ AutoCare Portal</a>
+            <a class="navbar-brand fw-bold" href="./">🏎️ AutoCare Portal</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -230,7 +230,7 @@
                     </form>
                 </div>
                 <div class="modal-footer justify-content-center">
-                    <small id="authToggleText">Don't have an account? <a href="#" onclick="toggleAuthMode()">Register</a></small>
+                    <small id="authToggleText">Don't have an account? <a href="#" onclick="setAuthMode('signup')">Register</a></small>
                 </div>
             </div>
         </div>
@@ -275,6 +275,10 @@
         let currentUser = null;
         let token = localStorage.getItem('token');
 
+        // Dynamically derive base API URL to support deployments in root or subdirectories
+        const basePath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+        const API_BASE = basePath + 'api/';
+
         document.addEventListener('DOMContentLoaded', () => {
             checkAuthStatus();
             loadProducts();
@@ -291,23 +295,36 @@
             if (sectionId === 'admin') loadAdminData();
         }
 
+        async function fetchJson(url, options = {}) {
+            try {
+                const res = await fetch(url, options);
+                const contentType = res.headers.get('content-type') || '';
+                let data = null;
+                if (contentType.includes('application/json')) {
+                    data = await res.json();
+                } else {
+                    const text = await res.text();
+                    data = { error: text || 'Non-JSON response received' };
+                }
+                return { ok: res.ok, status: res.status, data };
+            } catch (err) {
+                return { ok: false, status: 0, data: { error: err.message || 'Network request failed' } };
+            }
+        }
+
         async function checkAuthStatus() {
             if (!token) {
                 renderAuthNav(null);
                 return;
             }
-            try {
-                const res = await fetch('/api/auth/me', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-                if (res.ok) {
-                    currentUser = await res.json();
-                    renderAuthNav(currentUser);
-                } else {
-                    localStorage.removeItem('token');
-                    renderAuthNav(null);
-                }
-            } catch (err) {
+            const { ok, data } = await fetchJson(API_BASE + 'auth/me', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (ok) {
+                currentUser = data;
+                renderAuthNav(currentUser);
+            } else {
+                localStorage.removeItem('token');
                 renderAuthNav(null);
             }
         }
@@ -356,7 +373,7 @@
             const email = document.getElementById('authEmail').value;
             const password = document.getElementById('authPassword').value;
 
-            const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/signin';
+            const endpoint = mode === 'signup' ? API_BASE + 'auth/signup' : API_BASE + 'auth/signin';
             const payload = { email, password };
 
             if (mode === 'signup') {
@@ -364,14 +381,13 @@
                 payload.role = document.getElementById('authRole').value;
             }
 
-            const res = await fetch(endpoint, {
+            const { ok, data } = await fetchJson(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
-            const data = await res.json();
-            if (res.ok) {
+            if (ok) {
                 token = data.accessToken;
                 localStorage.setItem('token', token);
                 bootstrap.Modal.getInstance(document.getElementById('authModal')).hide();
@@ -383,7 +399,7 @@
 
         async function logout() {
             localStorage.removeItem('token');
-            await fetch('/api/auth/logout', { method: 'POST' });
+            await fetchJson(API_BASE + 'auth/logout', { method: 'POST' });
             currentUser = null;
             renderAuthNav(null);
             showSection('catalog');
@@ -393,32 +409,27 @@
             const list = document.getElementById('productList');
             list.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
 
-            try {
-                const res = await fetch('/api/products' + queryParams);
-                const products = await res.json();
+            const { ok, data } = await fetchJson(API_BASE + 'products' + queryParams);
 
-                if (products.length === 0) {
-                    list.innerHTML = '<div class="col-12 text-center py-4">No matching products found.</div>';
-                    return;
-                }
+            if (!ok || !Array.isArray(data) || data.length === 0) {
+                list.innerHTML = '<div class="col-12 text-center py-4 text-muted">No matching products found.</div>';
+                return;
+            }
 
-                list.innerHTML = products.map(p => `
-                    <div class="col-md-4">
-                        <div class="card card-product h-100 shadow-sm">
-                            <div class="card-body">
-                                <span class="badge bg-secondary mb-2">${p.brand_label || 'AutoCare'}</span>
-                                <h5 class="card-title">${p.part || 'Auto Part'}</h5>
-                                <p class="card-text text-muted mb-1">Part #: <strong>${p.part_number || 'N/A'}</strong></p>
-                                ${p.make ? `<p class="card-text text-success mb-1">Fits: <strong>${p.year || ''} ${p.make} ${p.model || ''}</strong></p>` : ''}
-                                <p class="card-text">Rating: ⭐ ${p.rating || '5.0'}</p>
-                                <button class="btn btn-outline-primary btn-sm w-100 mt-2" onclick="placeOrder('${p.id}')">Order Part</button>
-                            </div>
+            list.innerHTML = data.map(p => `
+                <div class="col-md-4">
+                    <div class="card card-product h-100 shadow-sm">
+                        <div class="card-body">
+                            <span class="badge bg-secondary mb-2">${p.brand_label || 'AutoCare'}</span>
+                            <h5 class="card-title">${p.part || 'Auto Part'}</h5>
+                            <p class="card-text text-muted mb-1">Part #: <strong>${p.part_number || 'N/A'}</strong></p>
+                            ${p.make ? `<p class="card-text text-success mb-1">Fits: <strong>${p.year || ''} ${p.make} ${p.model || ''}</strong></p>` : ''}
+                            <p class="card-text">Rating: ⭐ ${p.rating || '5.0'}</p>
+                            <button class="btn btn-outline-primary btn-sm w-100 mt-2" onclick="placeOrder('${p.id}')">Order Part</button>
                         </div>
                     </div>
-                `).join('');
-            } catch (err) {
-                list.innerHTML = '<div class="col-12 text-center text-danger">Failed to load products.</div>';
-            }
+                </div>
+            `).join('');
         }
 
         function handleFitmentSearch(e) {
@@ -443,7 +454,7 @@
                 return;
             }
 
-            const res = await fetch('/api/orders', {
+            const { ok } = await fetchJson(API_BASE + 'orders', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -454,7 +465,7 @@
                 })
             });
 
-            if (res.ok) {
+            if (ok) {
                 alert('Order placed successfully!');
                 showSection('orders');
             } else {
@@ -464,16 +475,15 @@
 
         async function loadVehicles() {
             if (!currentUser) return;
-            const res = await fetch('/api/vehicles', {
+            const { ok, data } = await fetchJson(API_BASE + 'vehicles', {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
-            const vehicles = await res.json();
             const list = document.getElementById('vehicleList');
-            if (vehicles.length === 0) {
+            if (!ok || !Array.isArray(data) || data.length === 0) {
                 list.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No vehicles added yet.</td></tr>';
                 return;
             }
-            list.innerHTML = vehicles.map(v => `
+            list.innerHTML = data.map(v => `
                 <tr>
                     <td>${v.make}</td>
                     <td>${v.brand}</td>
@@ -489,20 +499,20 @@
             const formData = new FormData(e.target);
             const body = Object.fromEntries(formData);
 
-            const res = await fetch('/api/vehicles', {
+            const { ok } = await fetchJson(API_BASE + 'vehicles', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                 body: JSON.stringify(body)
             });
 
-            if (res.ok) {
+            if (ok) {
                 bootstrap.Modal.getInstance(document.getElementById('addVehicleModal')).hide();
                 loadVehicles();
             }
         }
 
         async function deleteVehicle(id) {
-            await fetch('/api/vehicles/' + id, {
+            await fetchJson(API_BASE + 'vehicles/' + id, {
                 method: 'DELETE',
                 headers: { 'Authorization': 'Bearer ' + token }
             });
@@ -511,16 +521,15 @@
 
         async function loadOrders() {
             if (!currentUser) return;
-            const res = await fetch('/api/orders', {
+            const { ok, data } = await fetchJson(API_BASE + 'orders', {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
-            const orders = await res.json();
             const list = document.getElementById('orderList');
-            if (orders.length === 0) {
+            if (!ok || !Array.isArray(data) || data.length === 0) {
                 list.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No orders found.</td></tr>';
                 return;
             }
-            list.innerHTML = orders.map(o => `
+            list.innerHTML = data.map(o => `
                 <tr>
                     <td><code>${o.id}</code></td>
                     <td><span class="badge bg-info">${o.shipping_status || 'PENDING'}</span></td>
@@ -532,16 +541,15 @@
 
         async function loadSupportTickets() {
             if (!currentUser) return;
-            const res = await fetch('/api/support', {
+            const { ok, data } = await fetchJson(API_BASE + 'support', {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
-            const tickets = await res.json();
             const list = document.getElementById('supportList');
-            if (tickets.length === 0) {
+            if (!ok || !Array.isArray(data) || data.length === 0) {
                 list.innerHTML = '<div class="text-center text-muted py-3">No support tickets found.</div>';
                 return;
             }
-            list.innerHTML = tickets.map(t => `
+            list.innerHTML = data.map(t => `
                 <div class="list-group-item">
                     <div class="d-flex w-100 justify-content-between">
                         <h5 class="mb-1">${t.subject}</h5>
@@ -558,23 +566,26 @@
             const formData = new FormData(e.target);
             const body = Object.fromEntries(formData);
 
-            const res = await fetch('/api/support', {
+            const { ok } = await fetchJson(API_BASE + 'support', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                 body: JSON.stringify(body)
             });
 
-            if (res.ok) {
+            if (ok) {
                 bootstrap.Modal.getInstance(document.getElementById('createTicketModal')).hide();
                 loadSupportTickets();
             }
         }
 
         async function loadCMSPages() {
-            const res = await fetch('/api/cms');
-            const pages = await res.json();
+            const { ok, data } = await fetchJson(API_BASE + 'cms');
             const list = document.getElementById('cmsList');
-            list.innerHTML = pages.map(p => `
+            if (!ok || !Array.isArray(data) || data.length === 0) {
+                list.innerHTML = '<div class="col-12 text-center text-muted py-3">No CMS pages found.</div>';
+                return;
+            }
+            list.innerHTML = data.map(p => `
                 <div class="col-md-4 mb-3">
                     <div class="card h-100">
                         <div class="card-body">
@@ -591,13 +602,12 @@
             if (!currentUser || !['ADMIN', 'STAFF'].includes((currentUser.role || '').toUpperCase())) return;
 
             // Load Users
-            const usersRes = await fetch('/api/users', { headers: { 'Authorization': 'Bearer ' + token } });
-            if (usersRes.ok) {
-                const users = await usersRes.json();
+            const { ok, data } = await fetchJson(API_BASE + 'users', { headers: { 'Authorization': 'Bearer ' + token } });
+            if (ok && Array.isArray(data)) {
                 document.getElementById('adminUserList').innerHTML = `
                     <table class="table table-sm">
                         <thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
-                        <tbody>${users.map(u => `<tr><td>${u.contactName}</td><td>${u.email}</td><td><span class="badge bg-secondary">${u.role}</span></td></tr>`).join('')}</tbody>
+                        <tbody>${data.map(u => `<tr><td>${u.contactName}</td><td>${u.email}</td><td><span class="badge bg-secondary">${u.role}</span></td></tr>`).join('')}</tbody>
                     </table>
                 `;
             }
@@ -608,13 +618,13 @@
             const formData = new FormData(e.target);
             const body = Object.fromEntries(formData);
 
-            const res = await fetch('/api/products', {
+            const { ok } = await fetchJson(API_BASE + 'products', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                 body: JSON.stringify(body)
             });
 
-            if (res.ok) {
+            if (ok) {
                 alert('Product created successfully');
                 e.target.reset();
                 showSection('catalog');
@@ -634,14 +644,13 @@
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
 
-            const res = await fetch('/api/acespies/ingest', {
+            const { ok, data } = await fetchJson(API_BASE + 'acespies/ingest', {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + token },
                 body: formData
             });
 
-            const data = await res.json();
-            if (res.ok) {
+            if (ok) {
                 statusDiv.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
                 loadProducts();
             } else {
