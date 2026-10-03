@@ -6,6 +6,7 @@ require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/jwt.php';
 require_once __DIR__ . '/../helpers/auth.php';
 require_once __DIR__ . '/../helpers/upload.php';
+require_once __DIR__ . '/../helpers/ingestion.php';
 
 // Enable CORS
 header("Access-Control-Allow-Origin: *");
@@ -17,7 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$raw_uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$uri = $_SERVER['NORMALIZED_API_URI'] ?? $raw_uri;
+if (($pos = strpos($uri, '/api/')) !== false && $pos > 0) {
+    $uri = substr($uri, $pos);
+}
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Helper to match route path patterns e.g. /api/users/:id
@@ -201,10 +206,26 @@ if (match_route('/api/vehicles/:id', $uri, $params) && $method === 'DELETE') {
 }
 
 // ==========================================
-// 4. PRODUCT ROUTES
+// 4. PRODUCT & FITMENT SEARCH ROUTES
 // ==========================================
 if ($uri === '/api/products' && $method === 'GET') {
-    $stmt = $db->query("SELECT * FROM products LIMIT 100");
+    $make = $_GET['make'] ?? null;
+    $model = $_GET['model'] ?? null;
+    $year = $_GET['year'] ?? null;
+
+    if ($make || $model || $year) {
+        $sql = "SELECT p.*, bv.make, bv.model, bv.year FROM products p JOIN base_vehicles bv ON p.base_vehicle_id = bv.id WHERE 1=1";
+        $binds = [];
+        if ($make) { $sql .= " AND bv.make LIKE ?"; $binds[] = "%{$make}%"; }
+        if ($model) { $sql .= " AND bv.model LIKE ?"; $binds[] = "%{$model}%"; }
+        if ($year) { $sql .= " AND bv.year = ?"; $binds[] = (int)$year; }
+        $sql .= " LIMIT 100";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($binds);
+    } else {
+        $stmt = $db->query("SELECT * FROM products LIMIT 100");
+    }
+
     $products = $stmt->fetchAll();
     send_json_response($products);
 }
@@ -250,13 +271,16 @@ if ($uri === '/api/products' && $method === 'POST') {
     $partTerminologyId = (int)($input['partTerminologyId'] ?? 1);
 
     // Ensure referenced tables have placeholder records if needed
-    $db->prepare("INSERT OR IGNORE INTO base_vehicles (id, base_vehicle_id) VALUES (?, 1)")->execute([$baseVehicleId]);
-    $db->prepare("INSERT OR IGNORE INTO engine_bases (id, engine_base_id) VALUES (?, 1)")->execute([$engineBaseId]);
-    $db->prepare("INSERT OR IGNORE INTO engine_designations (id, engine_designation_id) VALUES (?, 1)")->execute([$engineDesignationId]);
-    $db->prepare("INSERT OR IGNORE INTO engine_versions (id, engine_version_id) VALUES (?, 1)")->execute([$engineVersionId]);
-    $db->prepare("INSERT OR IGNORE INTO engine_mfrs (id, engine_mfr_id) VALUES (?, 1)")->execute([$engineMfrId]);
-    $db->prepare("INSERT OR IGNORE INTO fuel_types (id, fuel_type_id) VALUES (?, 1)")->execute([$fuelTypeId]);
-    $db->prepare("INSERT OR IGNORE INTO brand_aaiaids (id, brand_aaiaid_id) VALUES (?, 'DEFAULT')")->execute([$brandAaiaidId]);
+    $db_driver = getenv('DB_DRIVER') ?: 'sqlite';
+    $ignoreClause = ($db_driver === 'mysql') ? "INSERT IGNORE INTO" : "INSERT OR IGNORE INTO";
+
+    $db->prepare("{$ignoreClause} base_vehicles (id, base_vehicle_id) VALUES (?, 1)")->execute([$baseVehicleId]);
+    $db->prepare("{$ignoreClause} engine_bases (id, engine_base_id) VALUES (?, 1)")->execute([$engineBaseId]);
+    $db->prepare("{$ignoreClause} engine_designations (id, engine_designation_id) VALUES (?, 1)")->execute([$engineDesignationId]);
+    $db->prepare("{$ignoreClause} engine_versions (id, engine_version_id) VALUES (?, 1)")->execute([$engineVersionId]);
+    $db->prepare("{$ignoreClause} engine_mfrs (id, engine_mfr_id) VALUES (?, 1)")->execute([$engineMfrId]);
+    $db->prepare("{$ignoreClause} fuel_types (id, fuel_type_id) VALUES (?, 1)")->execute([$fuelTypeId]);
+    $db->prepare("{$ignoreClause} brand_aaiaids (id, brand_aaiaid_id) VALUES (?, 'DEFAULT')")->execute([$brandAaiaidId]);
 
     $stmt = $db->prepare("INSERT INTO products (id, part_number, brand_label, part, rating, part_terminology_id, base_vehicle_id, engine_base_id, engine_designation_id, engine_version_id, engine_mfr_id, fuel_type_id, brand_aaiaid_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     $stmt->execute([$id, $partNumber, $brandLabel, $part, $rating, $partTerminologyId, $baseVehicleId, $engineBaseId, $engineDesignationId, $engineVersionId, $engineMfrId, $fuelTypeId, $brandAaiaidId]);
@@ -265,7 +289,40 @@ if ($uri === '/api/products' && $method === 'POST') {
 }
 
 // ==========================================
-// 5. ORDER ROUTES
+// 5. INGESTION & ETL ROUTE (ACES / PIES)
+// ==========================================
+if ($uri === '/api/acespies/ingest' && $method === 'POST') {
+    require_roles(['ADMIN', 'SUPPLIER']);
+
+    if (!empty($_FILES['file']['tmp_name'])) {
+        $raw = file_get_contents($_FILES['file']['tmp_name']);
+        $items = json_decode($raw, true);
+        if (is_array($items)) {
+            $count = 0;
+            foreach ($items as $item) {
+                if (ingest_aces_pies_item($item)) {
+                    $count++;
+                }
+            }
+            send_json_response(['message' => "Successfully ingested {$count} ACES/PIES items"]);
+        } else {
+            send_error_response('Invalid JSON file format');
+        }
+    } elseif (!empty($input['items']) && is_array($input['items'])) {
+        $count = 0;
+        foreach ($input['items'] as $item) {
+            if (ingest_aces_pies_item($item)) {
+                $count++;
+            }
+        }
+        send_json_response(['message' => "Successfully ingested {$count} ACES/PIES items"]);
+    } else {
+        send_error_response('No file or JSON items provided for ingestion');
+    }
+}
+
+// ==========================================
+// 6. ORDER ROUTES
 // ==========================================
 if ($uri === '/api/orders' && $method === 'GET') {
     $user = require_auth();
@@ -315,7 +372,7 @@ if (match_route('/api/orders/:id', $uri, $params) && $method === 'GET') {
 }
 
 // ==========================================
-// 6. SUPPORT TICKET ROUTES
+// 7. SUPPORT TICKET ROUTES
 // ==========================================
 if ($uri === '/api/support' && $method === 'GET') {
     $user = require_auth();
@@ -351,7 +408,7 @@ if ($uri === '/api/support' && $method === 'POST') {
 }
 
 // ==========================================
-// 7. REVIEW ROUTES
+// 8. REVIEW ROUTES
 // ==========================================
 if ($uri === '/api/reviews' && $method === 'GET') {
     $productId = $_GET['productId'] ?? null;
@@ -378,7 +435,7 @@ if ($uri === '/api/reviews' && $method === 'POST') {
 }
 
 // ==========================================
-// 8. SUPPLIER ROUTES
+// 9. SUPPLIER ROUTES
 // ==========================================
 if ($uri === '/api/suppliers' && $method === 'GET') {
     $stmt = $db->query("SELECT * FROM suppliers ORDER BY created_at DESC");
@@ -400,7 +457,7 @@ if ($uri === '/api/suppliers' && $method === 'POST') {
 }
 
 // ==========================================
-// 9. PROMOTION ROUTES
+// 10. PROMOTION ROUTES
 // ==========================================
 if ($uri === '/api/promotions' && $method === 'GET') {
     $stmt = $db->query("SELECT * FROM promotions ORDER BY created_at DESC");
@@ -420,7 +477,7 @@ if ($uri === '/api/promotions' && $method === 'POST') {
 }
 
 // ==========================================
-// 10. CMS ROUTES
+// 11. CMS ROUTES
 // ==========================================
 if ($uri === '/api/cms' && $method === 'GET') {
     $stmt = $db->query("SELECT * FROM cms_pages ORDER BY created_at DESC");
@@ -450,7 +507,7 @@ if ($uri === '/api/cms' && $method === 'POST') {
 }
 
 // ==========================================
-// 11. EMAIL TEMPLATE ROUTES
+// 12. EMAIL TEMPLATE ROUTES
 // ==========================================
 if ($uri === '/api/email-templates' && $method === 'GET') {
     require_roles(['ADMIN', 'STAFF']);
@@ -472,7 +529,7 @@ if ($uri === '/api/email-templates' && $method === 'POST') {
 }
 
 // ==========================================
-// 12. ACTIVITY LOG ROUTES
+// 13. ACTIVITY LOG ROUTES
 // ==========================================
 if ($uri === '/api/activity-logs' && $method === 'GET') {
     require_roles(['ADMIN', 'STAFF']);
